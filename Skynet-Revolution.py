@@ -1,13 +1,25 @@
 from sys import stderr
 from collections import deque, defaultdict
+from enum import IntEnum
+from heapq import heappop, heappush
+
+class NodeType(IntEnum):
+    DEAD = 100
+    ALIVE = 1
+    DANGER = 2
 
 class Vertex:
     def __init__(self, id: int):
             self.gateway = False
             self.id = id
+            self.type = NodeType.DEAD
+
+    def setType(self, type: NodeType):
+        self.type = type
+
 
     def print(self):
-        print(f"Id: {self.id}, gateway: {self.gateway}", file=stderr, flush=True)
+        print(f"Id: {self.id}, gateway: {self.gateway}, Type: {self.type}", file=stderr, flush=True)
 
     def setGateway(self):
             self.gateway = True
@@ -16,6 +28,29 @@ class Graph:
     def __init__(self, n):
         self.graph = defaultdict(list)
         self.vertices = [Vertex(i) for i in range(n)]
+    
+    
+    def print(self):
+        for cnct in sorted(self.graph):
+            self.vertices[cnct].print()
+
+    def updateTypes(self, dead: bool):
+        for node in self.vertices:
+            # Don't waste time on dead nodes
+            if not dead and node.type == NodeType.DEAD:
+                continue
+        
+            gates = 0
+            for cnct in self.graph[node.id]:
+                if cnct.gateway == True:
+                    gates += 1
+            if gates > 1:
+                node.setType(NodeType.DANGER)
+            elif gates == 1:
+                node.setType(NodeType.ALIVE)
+            else: 
+                node.setType(NodeType.DEAD)
+    
 
     def addEdge(self, u: int, v: Vertex):
         self.graph[u].append(v)
@@ -32,39 +67,34 @@ class Graph:
                 gateways.append(vertex)
         
         return gateways
-
-    def BFS(self, s: int, t):
+    
+    def greedy(self, s: int):
         # Initialize search
-        Q = deque()
+        Q = []
         V = set()
 
         # Prep search
-        Q.append(s)
+        heappush(Q, (0, s))
         V.add(s)
 
         while Q:
             # Get next node
-            node = Q.popleft()
+            tup = heappop(Q)
+            prev = tup[0]
+            node_idx = tup[1]
+
+            if self.vertices[node_idx].type == NodeType.DANGER:
+                return node_idx
+
 
             # Get successors
-            for next in self.graph[node]:
-                if next not in V:
-                    Q.append(next)
-                    V.add(next)
+            for nxt in self.graph[node_idx]:
+                val = int(nxt.type) + prev
+                if nxt.id not in V:
+                    heappush(Q, (val, nxt.id))
+                    V.add(nxt.id)
+        return None
     
-    
-    def multiGate(self):
-        for vertex in self.vertices:
-            num = 0
-            gate = []
-            for connect in self.graph[vertex.id]:
-                if connect.gateway == True:
-                    num += 1    
-                    gate.append(connect)
-            if num > 1:
-                return gate
-        return []
-        
         
     def findGateway(self, s: int):
         # Initialize search
@@ -93,10 +123,6 @@ def printError(target):
     print(target, file=stderr, flush=True)
 
 def main():
-
-    # n: the total number of nodes in the level, including the gateways
-    # l: the number of links
-    # e: the number of exit gateways
     n, l, e = [int(i) for i in input().split()]
     graph = Graph(n)
 
@@ -111,10 +137,7 @@ def main():
         ei = int(input())  # the index of a gateway node
         graph.vertices[ei].setGateway()
 
-    # for vertex in graph.vertices:
-    #     vertex.print()
-
-    # printError("")
+    graph.updateTypes(True)
 
     # game loop
     while True:
@@ -127,13 +150,29 @@ def main():
 
             graph.removeEdge(skynet.id, node)
             graph.removeEdge(node.id, skynet)
+            graph.updateTypes(False)
         else:
-            target = graph.findGateway(si)
-            node = graph.graph[target][0]
-            print(f"{target} {node.id}")
+            foo = graph.greedy(si)
+            target = graph.gateways(foo)
 
-            graph.removeEdge(target, node)
-            graph.removeEdge(node.id, graph.vertices[target])
+            # If there is no double gates
+            if target == []:
+                target = graph.findGateway(si)
+                node = graph.graph[target][0]
+                print(f"{target} {node.id}")
+
+                graph.removeEdge(target, node)
+                graph.removeEdge(node.id, graph.vertices[target])
+                graph.updateTypes(False)
+                continue
+            
+            # kill a connection to the double gate
+            node = target[0]
+            print(f"{foo} {node.id}")
+
+            graph.removeEdge(foo, node)
+            graph.removeEdge(node.id, graph.vertices[foo])
+            graph.updateTypes(False)
 
 if __name__ == "__main__":
     main()
