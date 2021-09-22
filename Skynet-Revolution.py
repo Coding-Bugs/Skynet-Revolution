@@ -51,7 +51,21 @@ class Graph:
                 if next not in V:
                     Q.append(next)
                     V.add(next)
-
+    
+    
+    def multiGate(self):
+        for vertex in self.vertices:
+            num = 0
+            gate = []
+            for connect in self.graph[vertex.id]:
+                if connect.gateway == True:
+                    num += 1    
+                    gate.append(connect)
+            if num > 1:
+                return gate
+        return []
+        
+        
     def findGateway(self, s: int):
         # Initialize search
         Q = deque()
